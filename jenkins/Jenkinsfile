@@ -5,11 +5,12 @@ pipeline {
         jdk 'JDK'
     }
   environment {
-    IMAGE_NAME = "devops-challenge"
-    REGISTRY = "localhost:5000"
-    TF_IN_AUTOMATION = "true"
-  }
-
+        DOCKERHUB_USER = "nareshbashipangu"
+        IMAGE_NAME = "devops-challenge"
+        BUILD_TAG = "${BUILD_NUMBER}"
+        IMAGE_WITH_BUILD = "${DOCKERHUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
+        IMAGE_LATEST = "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
+    }
   stages {
 
     stage('Checkout') {
@@ -24,7 +25,7 @@ pipeline {
             steps {
         dir('application') {
              echo "maven test"
-                    sh 'mvn test'
+                    bat 'mvn test'
                 }
             }
         }
@@ -33,7 +34,7 @@ pipeline {
             steps {
                 dir('application') {
                   echo "packaging java application"
-                    sh 'mvn clean package -DskipTests'
+                    bat 'mvn clean package -DskipTests'
                 }
             }
         }
@@ -42,24 +43,68 @@ pipeline {
     steps {
         dir('application') {
             echo "Building Docker image"
-            sh """
-                docker build -t ${IMAGE_NAME}:latest .
-                docker tag ${IMAGE_NAME}:latest ${REGISTRY}/${IMAGE_NAME}:latest
-            """
+                bat "docker build -t %IMAGE_WITH_BUILD% ."
+                     }
+        }
+      }
+
+      stage('Tag Image as Latest') {
+            steps {
+                bat "docker tag %IMAGE_WITH_BUILD% %IMAGE_LATEST%"
+            }
+        }
+
+        stage('DockerHub Login') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    bat "docker login -u %DOCKER_USER% -p %DOCKER_PASS%"
+                }
+            }
+        }
+
+        stage('Push Docker Images') {
+            steps {
+                bat """
+                docker push %IMAGE_WITH_BUILD%
+                docker push %IMAGE_LATEST%
+                """
+            }
+        }
+
+        stage('Verify Tags') {
+            steps {
+                bat "docker images | findstr %IMAGE_NAME%"
+            }
         }
     }
-}
 
-        stage('Docker Push') {
+    post {
+        success {
+            echo "✅ Docker image tagged and pushed successfully!"
+        }
+        failure {
+            echo "❌ Docker tagging or push failed"
+        }
+    }
+  
+	  
+	  }
+	  
+        /*stage('Docker Push') {
             steps {
-                          echo "pushing Docker image to local registry"
+                 echo "pushing Docker image to local registry"
 
                 sh """
                     docker push ${REGISTRY}/${IMAGE_NAME}:latest
                 """
             }
         }
-  stage('Terraform Init') {
+        
+ stage('Terraform Init') {
     steps {
           dir('terraform') {
             echo "terraform initialization"
@@ -69,9 +114,7 @@ pipeline {
           }
     }
 }
-/*
-
-    
+  
       stage('Terraform Init') {
             steps {
                 dir('terraform') {
@@ -110,9 +153,7 @@ pipeline {
                 sh 'kubectl get nodes'
             }
         }
-    
-
-        
+            
    stage('SonarQube') {
       steps {
         sh 'mvn sonar:sonar'
@@ -136,5 +177,5 @@ pipeline {
     }
      
   }
-}
+
  */
