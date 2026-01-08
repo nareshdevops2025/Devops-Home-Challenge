@@ -1,0 +1,140 @@
+pipeline {
+  agent any
+  tools {
+        maven 'maven-3'
+        jdk 'JDK'
+    }
+  environment {
+    IMAGE_NAME = "devops-challenge"
+    REGISTRY = "localhost:5000"
+    TF_IN_AUTOMATION = "true"
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        echo "code checkout from github"
+        git branch: 'main',
+            url: 'https://github.com/nareshdevops2025/devops-challenge.git'
+      }
+    }
+
+     stage('Testing') {
+            steps {
+        dir('application') {
+             echo "maven test"
+                    sh 'mvn test'
+                }
+            }
+        }
+
+      stage('Package Build') {
+            steps {
+                dir('application') {
+                  echo "packaging java application"
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+    stage('Docker Build') {
+    steps {
+        dir('application') {
+            echo "Building Docker image"
+            sh """
+                docker build -t ${IMAGE_NAME}:latest .
+                docker tag ${IMAGE_NAME}:latest ${REGISTRY}/${IMAGE_NAME}:latest
+            """
+        }
+    }
+}
+
+        stage('Docker Push') {
+            steps {
+                          echo "pushing Docker image to local registry"
+
+                sh """
+                    docker push ${REGISTRY}/${IMAGE_NAME}:latest
+                """
+            }
+        }
+  stage('Terraform Init') {
+    steps {
+          dir('terraform') {
+            echo "terraform initialization"
+              sh 'terraform init'
+            }
+        }
+          }
+    }
+}
+/*
+
+    
+      stage('Terraform Init') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+      stage('Terraform Validate') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform plan'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir('terraform') {
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+
+        stage('Verify Cluster') {
+            steps {
+                sh 'minikube status'
+                sh 'kubectl get nodes'
+            }
+        }
+    
+
+        
+   stage('SonarQube') {
+      steps {
+        sh 'mvn sonar:sonar'
+      }
+    }
+  
+    stage('Docker Build') {
+      steps {
+        sh 'docker build -t hello:latest -f docker/Dockerfile .'
+      }
+    }
+    stage('Security Scan') {
+      steps {
+        sh 'trivy image hello:latest'
+      }
+    }
+    stage('Deploy') {
+      steps {
+        sh 'helm upgrade --install hello helm/hello-app'
+      }
+    }
+     
+  }
+}
+ */
