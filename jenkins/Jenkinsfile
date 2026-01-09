@@ -78,7 +78,6 @@ pipeline {
      			echo "Push image into dockerhub"
                 bat """
                 docker push %IMAGE_WITH_BUILD%
-                docker push %IMAGE_LATEST%
                 """
             }
         }
