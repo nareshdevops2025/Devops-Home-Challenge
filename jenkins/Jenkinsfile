@@ -1,5 +1,8 @@
 pipeline {
   agent any
+	 options {
+        timestamps()
+    }
   tools {
         maven 'maven-3'
         jdk 'JDK'
@@ -10,52 +13,56 @@ pipeline {
         BUILD_TAG = "${BUILD_NUMBER}"
         IMAGE_WITH_BUILD = "${DOCKERHUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
         IMAGE_LATEST = "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
+		NAMESPACE = "staging"
+	    KUBECONFIG = "C:\\Users\\Hp\\.kube\\config"
     }
   stages {
 
-    stage('Checkout') {
-      steps {
-        echo "code checkout from github"
-        git branch: 'main',
+	stage('Checkout') {
+         steps {
+          echo "Code checkout from github"
+          git branch: 'main',
             url: 'https://github.com/nareshdevops2025/devops-challenge.git'
       }
     }
 
-     stage('Testing') {
-            steps {
-        dir('application') {
-             echo "maven test"
-                    bat 'mvn test'
+	stage('Testing') {
+          steps {
+            dir('application') {
+             echo "Unit testing"
+             bat 'mvn test'
                 }
             }
         }
 
-      stage('Package Build') {
+	stage('Package Build') {
             steps {
                 dir('application') {
-                  echo "packaging java application"
+                  echo "Packaging java application"
                     bat 'mvn clean package -DskipTests'
                 }
             }
         }
 
-    stage('Docker Build') {
-    steps {
-        dir('application') {
-            echo "Building Docker image"
-                bat "docker build -t %IMAGE_WITH_BUILD% ."
+	stage('Docker Build') {
+         steps {
+             dir('application') {
+               echo "Building Docker image"
+               bat "docker build -t %IMAGE_WITH_BUILD% ."
                      }
         }
       }
 
-      stage('Tag Image as Latest') {
+	stage('Tag Image as Latest') {
             steps {
+			    echo "Tag docker image"     
                 bat "docker tag %IMAGE_WITH_BUILD% %IMAGE_LATEST%"
             }
         }
 
-        stage('DockerHub Login') {
+	stage('DockerHub Login') {
             steps {
+				echo "Login into dockerhub"
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
@@ -66,8 +73,9 @@ pipeline {
             }
         }
 
-        stage('Push Docker Images') {
+	stage('Push Docker Images') {
             steps {
+     			echo "Push image into dockerhub"
                 bat """
                 docker push %IMAGE_WITH_BUILD%
                 docker push %IMAGE_LATEST%
@@ -75,107 +83,64 @@ pipeline {
             }
         }
 
-        stage('Verify Tags') {
-            steps {
+	stage('Verify Tags') {
+              steps {
+				echo "Verify image tag"
                 bat "docker images | findstr %IMAGE_NAME%"
             }
         }
-    }
 
-    post {
-        success {
-            echo "✅ Docker image tagged and pushed successfully!"
-        }
-        failure {
-            echo "❌ Docker tagging or push failed"
-        }
-    }
-  
-	  
-	  }
-	  
-        /*stage('Docker Push') {
+        stage('Verify kubectl') {
             steps {
-                 echo "pushing Docker image to local registry"
-
-                sh """
-                    docker push ${REGISTRY}/${IMAGE_NAME}:latest
-                """
-            }
-        }
-        
- stage('Terraform Init') {
-    steps {
-          dir('terraform') {
-            echo "terraform initialization"
-              sh 'terraform init'
-            }
-        }
-          }
-    }
-}
-  
-      stage('Terraform Init') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform init'
-                }
+                bat 'kubectl version --client'
             }
         }
 
-      stage('Terraform Validate') {
+        stage('Verify Kubernetes Context') {
             steps {
-                dir('terraform') {
-                    sh 'terraform validate'
-                }
+                bat 'kubectl config get-contexts'
             }
         }
 
-        stage('Terraform Plan') {
+        stage('Switch to Minikube Context') {
             steps {
-                dir('terraform') {
-                    sh 'terraform plan'
-                }
+                bat 'kubectl config use-context minikube'
             }
         }
 
-        stage('Terraform Apply') {
+        stage('Verify Cluster Access') {
             steps {
-                dir('terraform') {
-                    sh 'terraform apply -auto-approve'
-                }
+                bat 'kubectl get nodes'
             }
+        }
+    
+	
+	stage('Create Namespace') {
+            steps {
+				echo "Create namespace in Minikube"
+                bat 'kubectl create namespace %NAMESPACE% --dry-run=client -o yaml | kubectl apply -f -'
+                      }
         }
 
-        stage('Verify Cluster') {
+	stage('Deploy Application') {
             steps {
-                sh 'minikube status'
-                sh 'kubectl get nodes'
-            }
-        }
+				echo "Deploy application in kubernetes namespace in Minikube"
+                bat 'kubectl apply -n %NAMESPACE% -f kubernetes/deployment.yaml'
+                bat 'kubectl apply -n %NAMESPACE% -f kubernetes/service.yaml'
             
-   stage('SonarQube') {
-      steps {
-        sh 'mvn sonar:sonar'
-      }
-    }
-  
-    stage('Docker Build') {
-      steps {
-        sh 'docker build -t hello:latest -f docker/Dockerfile .'
-      }
-    }
-    stage('Security Scan') {
-      steps {
-        sh 'trivy image hello:latest'
-      }
-    }
-    stage('Deploy') {
-      steps {
-        sh 'helm upgrade --install hello helm/hello-app'
-      }
-    }
-     
-  }
+            }
+        }
 
- */
+	stage('Verify Rollout') {
+            steps {
+			   echo "Verify rollout"
+               bat 'kubectl rollout status deployment/devops-challenge -n %NAMESPACE%'
+               bat 'kubectl get pods -n %NAMESPACE%'
+               bat 'kubectl get svc -n %NAMESPACE%'
+            }
+        }
+    
+   
+  
+	}  
+	  }
