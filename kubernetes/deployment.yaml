@@ -17,4 +17,8 @@ spec:
         image: devops-challenge
         imagePullPolicy: IfNotPresent
         ports:
+<<<<<<< HEAD
         - containerPort: 9900
+=======
+        - containerPort: 8080
+>>>>>>> cfd2a899e9698073c732ad2be2d3665e2bffe2bc

@@ -8,4 +8,8 @@ spec:
     app: devops-challenge
   ports:
   - port: 80
+<<<<<<< HEAD
     targetPort: 9900
+=======
+    targetPort: 8080
+>>>>>>> cfd2a899e9698073c732ad2be2d3665e2bffe2bc
